@@ -24,13 +24,19 @@ We aim to investigate:
 
 ## Dataset
 
-The project uses the **NIH ChestX-ray14 dataset**, containing 112,120 frontal chest X-ray images together with disease labels and patient metadata.
+The original source is the **NIH ChestX-ray14 dataset**, containing 112,120 frontal chest X-ray images together with disease labels and patient metadata.
 
-The X-ray images are accessed through the Kaggle-hosted copy of ChestX-ray14 rather than stored in this repository. This keeps the GitHub repository lightweight while allowing all group members to work from the same underlying dataset.
+### Frozen Study Cohort
+
+**All CNN, ViT, and SVM experiments in this project must use the same frozen `cleaned_cohort.csv`.** This CSV defines the exact **12,464 X-rays** included in the study and their fixed age-group and train/validation/test assignments. Models should not independently regenerate or randomly re-split the cohort, as doing so would make model comparisons inconsistent.
+
+The cleaned CSV contains one row per selected X-ray, including its image filename, patient ID, recorded age, original finding labels, project target label, age group, and fixed dataset split.
+
+The corresponding 12,464 original-resolution X-rays have also been prepared as a reduced **4.63 GB** image set from the Kaggle-hosted copy of ChestX-ray14. The full 112,120-image dataset is therefore not required for model development once the prepared cohort is available.
+
+The repository's `clean_data.py` documents and reproduces the cohort-selection and patient-level splitting methodology. The frozen `cleaned_cohort.csv` is the authoritative split used for model comparison.
 
 ## Data Preparation
-
-The initial data-cleaning and splitting pipeline has been implemented in `clean_data.py`.
 
 ### Disease Selection
 
@@ -56,8 +62,6 @@ X-rays are divided according to the patient's recorded age at the time of the im
 
 Patient ages outside the range **1–120 years** are treated as invalid. Two records were removed for implausible ages.
 
-The resulting cohort is:
-
 | Age group | Atelectasis | Pneumonia | Total |
 | --- | ---: | ---: | ---: |
 | < 65 | 9,211 | 1,008 | 10,219 |
@@ -78,7 +82,7 @@ A small number of patients have X-rays recorded on both sides of the 65-year age
 
 The remaining patients are stratified by age group and whether they contribute a Pneumonia image to help preserve representation of the minority class.
 
-### Final Split
+### Fixed Split Used by All Models
 
 | Split | Age group | Atelectasis X-rays | Pneumonia X-rays |
 | --- | --- | ---: | ---: |
@@ -89,7 +93,7 @@ The remaining patients are stratified by age group and whether they contribute a
 | Test | < 65 | 1,774 | 207 |
 | Test | ≥ 65 | 342 | 27 |
 
-All 12,464 selected X-rays were successfully matched to image files in the Kaggle dataset.
+All 12,464 selected X-rays were successfully matched to their corresponding image files.
 
 ## Class Imbalance
 
@@ -113,7 +117,7 @@ All selected NIH images are 1024 × 1024 pixels. Within the final cohort:
 - 12,429 images are stored as grayscale (`L`).
 - 35 images are stored as `RGBA`.
 
-Images will therefore be converted to a consistent format when loaded rather than modifying the original dataset.
+Images are converted to a consistent format when loaded rather than modifying the original files.
 
 For the CNN baseline, the current preprocessing pipeline is:
 
@@ -121,7 +125,7 @@ For the CNN baseline, the current preprocessing pipeline is:
 2. Resize from **1024 × 1024** to **224 × 224**.
 3. Convert pixel values to tensors scaled to **0–1**.
 
-Model-specific preprocessing may differ where required, particularly for pretrained Vision Transformer architectures.
+Model-specific preprocessing may differ where required, particularly for pretrained Vision Transformer architectures. Regardless of preprocessing, **all models must use the same rows and fixed split defined by `cleaned_cohort.csv`.**
 
 ## Planned Models
 
@@ -211,7 +215,8 @@ Differences in model performance across age groups do not by themselves establis
 **Work in progress**
 
 - Data cleaning and cohort selection: **Completed**
-- Patient-level train/validation/test splitting: **Completed**
+- Frozen `cleaned_cohort.csv` and fixed model splits: **Completed**
+- Reduced 12,464-image cohort: **Prepared**
 - Image loading and preprocessing pipeline: **Validated**
 - CNN development: **In progress**
 - ViT development: **Planned**
