@@ -1,17 +1,24 @@
-"""Prepare the NIH ChestX-ray14 metadata for the HS1502 project.
+"""Prepare and split NIH ChestX-ray14 metadata for the HS1502 project.
 
-This first-stage script only creates the study cohort. It does not preprocess
-images or create train/validation/test splits yet.
-
-Cohort rule:
+Study cohort:
 - Atelectasis present, Pneumonia absent -> Atelectasis
 - Pneumonia present, Atelectasis absent -> Pneumonia
-- Both present -> exclude (ambiguous binary target)
-- Neither present -> exclude
+- Both target diseases -> exclude (ambiguous binary target)
+- Neither target disease -> exclude
+- Other co-occurring findings are retained.
+- Patient age must be between 1 and 120 years.
 
 Age groups:
 - < 65 years -> under_65
 - >= 65 years -> over_65
+
+Data splitting:
+- 60% train / 20% validation / 20% test at the patient level.
+- All X-rays from a patient remain in exactly one split.
+- Patients with X-rays in both age groups are forced into training so the
+  validation and test age-group comparisons contain mutually exclusive patients.
+- Remaining patients are stratified by age group and whether they contribute
+  any Pneumonia image, helping preserve the scarce Pneumonia class.
 """
 
 from __future__ import annotations
@@ -20,10 +27,12 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 TARGET_A = "Atelectasis"
 TARGET_B = "Pneumonia"
 AGE_CUTOFF = 65
+RANDOM_STATE = 42
 
 REQUIRED_COLUMNS = {
     "Image Index",
@@ -35,12 +44,12 @@ REQUIRED_COLUMNS = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create the Atelectasis-vs-Pneumonia study cohort."
+        description="Create and patient-split the Atelectasis-vs-Pneumonia cohort."
     )
     parser.add_argument(
         "metadata_csv",
         type=Path,
-        help="Path to the NIH ChestX-ray14 metadata CSV (e.g. Data_Entry_2017.csv).",
+        help="Path to NIH Data_Entry_2017.csv.",
     )
     parser.add_argument(
         "--output",
@@ -61,19 +70,14 @@ def validate_columns(df: pd.DataFrame) -> None:
 
 
 def clean_age(series: pd.Series) -> pd.Series:
-    """Convert Patient Age to numeric values and mark impossible ages missing."""
+    """Convert ages to numeric and mark missing/implausible ages invalid."""
     age = pd.to_numeric(series, errors="coerce")
-
-    # ChestX-ray14 has historically contained some implausible age values.
-    # Keep only a conservative human age range for this study.
-    age = age.where(age.between(0, 120))
-    return age
+    return age.where(age.between(1, 120))
 
 
 def assign_target(labels: str) -> str | None:
-    """Return an unambiguous binary target from the pipe-separated labels."""
+    """Return the binary target when exactly one target disease is present."""
     findings = {item.strip() for item in str(labels).split("|")}
-
     has_atelectasis = TARGET_A in findings
     has_pneumonia = TARGET_B in findings
 
@@ -81,18 +85,15 @@ def assign_target(labels: str) -> str | None:
         return TARGET_A
     if has_pneumonia and not has_atelectasis:
         return TARGET_B
-
-    # Both target diseases, or neither target disease.
     return None
 
 
 def build_cohort(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter metadata and add project label and age-group columns."""
     validate_columns(df)
 
     cohort = df.copy()
     cohort["label"] = cohort["Finding Labels"].apply(assign_target)
-
-    # Keep only unambiguous Atelectasis-vs-Pneumonia examples.
     cohort = cohort[cohort["label"].notna()].copy()
 
     cohort["age"] = clean_age(cohort["Patient Age"])
@@ -104,56 +105,138 @@ def build_cohort(df: pd.DataFrame) -> pd.DataFrame:
         lambda age: "under_65" if age < AGE_CUTOFF else "over_65"
     )
 
-    # Preserve useful original metadata while adding explicit project columns.
+    cohort.attrs["invalid_age_count"] = invalid_age_count
+    return cohort
+
+
+def split_by_patient(cohort: pd.DataFrame) -> tuple[pd.DataFrame, set[int]]:
+    """Assign a reproducible 60/20/20 split without patient leakage."""
+    cohort = cohort.copy()
+
+    age_groups_per_patient = cohort.groupby("Patient ID")["age_group"].nunique()
+    cross_age_patients = set(age_groups_per_patient[age_groups_per_patient > 1].index)
+
+    normal = cohort[~cohort["Patient ID"].isin(cross_age_patients)].copy()
+
+    patient_table = (
+        normal.groupby("Patient ID")
+        .agg(
+            age_group=("age_group", "first"),
+            has_pneumonia=("label", lambda x: int((x == TARGET_B).any())),
+            n_images=("Image Index", "count"),
+        )
+        .reset_index()
+    )
+
+    patient_table["stratum"] = (
+        patient_table["age_group"]
+        + "_"
+        + patient_table["has_pneumonia"].map({0: TARGET_A, 1: TARGET_B})
+    )
+
+    # 60% train, 40% temporary pool.
+    train_patients, temp_patients = train_test_split(
+        patient_table,
+        test_size=0.40,
+        random_state=RANDOM_STATE,
+        stratify=patient_table["stratum"],
+    )
+
+    # Split the temporary pool equally -> 20% validation, 20% test.
+    val_patients, test_patients = train_test_split(
+        temp_patients,
+        test_size=0.50,
+        random_state=RANDOM_STATE,
+        stratify=temp_patients["stratum"],
+    )
+
+    train_ids = set(train_patients["Patient ID"])
+    train_ids.update(cross_age_patients)
+    val_ids = set(val_patients["Patient ID"])
+    test_ids = set(test_patients["Patient ID"])
+
+    if not train_ids.isdisjoint(val_ids):
+        raise RuntimeError("Patient leakage detected between train and validation.")
+    if not train_ids.isdisjoint(test_ids):
+        raise RuntimeError("Patient leakage detected between train and test.")
+    if not val_ids.isdisjoint(test_ids):
+        raise RuntimeError("Patient leakage detected between validation and test.")
+
+    def assign_split(patient_id: int) -> str:
+        if patient_id in train_ids:
+            return "train"
+        if patient_id in val_ids:
+            return "validation"
+        if patient_id in test_ids:
+            return "test"
+        raise RuntimeError(f"Patient {patient_id} was not assigned a split.")
+
+    cohort["split"] = cohort["Patient ID"].apply(assign_split)
+
+    # Final safety check: every patient must occur in exactly one split.
+    if cohort.groupby("Patient ID")["split"].nunique().max() != 1:
+        raise RuntimeError("Final leakage check failed: a patient spans multiple splits.")
+
+    return cohort, cross_age_patients
+
+
+def organise_columns(cohort: pd.DataFrame) -> pd.DataFrame:
     preferred_columns = [
         "Image Index",
         "Patient ID",
         "age",
         "age_group",
         "label",
+        "split",
         "Finding Labels",
     ]
-    remaining_columns = [
-        col for col in cohort.columns if col not in preferred_columns
-    ]
-    cohort = cohort[preferred_columns + remaining_columns]
-
-    cohort = cohort.sort_values(
-        ["age_group", "label", "Patient ID", "Image Index"]
-    ).reset_index(drop=True)
-
-    cohort.attrs["invalid_age_count"] = invalid_age_count
-    return cohort
-
-
-def print_summary(original: pd.DataFrame, cohort: pd.DataFrame) -> None:
-    print("\n=== NIH ChestX-ray14 cohort summary ===")
-    print(f"Original metadata rows: {len(original):,}")
-    print(f"Final study rows:       {len(cohort):,}")
-    print(
-        "Rows removed for missing/implausible age after disease filtering: "
-        f"{cohort.attrs.get('invalid_age_count', 0):,}"
+    remaining_columns = [col for col in cohort.columns if col not in preferred_columns]
+    return (
+        cohort[preferred_columns + remaining_columns]
+        .sort_values(["split", "age_group", "label", "Patient ID", "Image Index"])
+        .reset_index(drop=True)
     )
 
-    print("\nCounts by age group and target label:")
-    counts = pd.crosstab(cohort["age_group"], cohort["label"], margins=True)
-    print(counts.to_string())
 
-    print("\nUnique patients by age group and target label:")
-    patients = (
-        cohort.groupby(["age_group", "label"])["Patient ID"]
+def print_summary(
+    original: pd.DataFrame,
+    cohort: pd.DataFrame,
+    cross_age_patients: set[int],
+    invalid_age_count: int,
+) -> None:
+    print("\n=== NIH ChestX-ray14 study cohort ===")
+    print(f"Original metadata rows: {len(original):,}")
+    print(f"Final study X-rays:      {len(cohort):,}")
+    print(f"Unique study patients:   {cohort['Patient ID'].nunique():,}")
+    print(f"Invalid ages removed:    {invalid_age_count:,}")
+    print(f"Cross-age patients forced into training: {len(cross_age_patients):,}")
+
+    print("\nX-rays by split, age group and label:")
+    image_summary = (
+        cohort.groupby(["split", "age_group", "label"])
+        .size()
+        .unstack(fill_value=0)
+    )
+    print(image_summary.to_string())
+
+    print("\nUnique patients by split, age group and label:")
+    patient_summary = (
+        cohort.groupby(["split", "age_group", "label"])["Patient ID"]
         .nunique()
         .unstack(fill_value=0)
     )
-    print(patients.to_string())
+    print(patient_summary.to_string())
 
-    both_age_groups = cohort.groupby("Patient ID")["age_group"].nunique()
-    inconsistent = int((both_age_groups > 1).sum())
-    if inconsistent:
-        print(
-            f"\nWARNING: {inconsistent:,} patient(s) appear in both age groups. "
-            "Inspect age metadata before creating patient-level splits."
-        )
+    older_pneumonia = cohort[
+        (cohort["age_group"] == "over_65") & (cohort["label"] == TARGET_B)
+    ]
+    print("\n>=65 Pneumonia X-rays by split:")
+    print(older_pneumonia["split"].value_counts().to_string())
+
+    print("\n>=65 Pneumonia unique patients by split:")
+    print(older_pneumonia.groupby("split")["Patient ID"].nunique().to_string())
+
+    print("\nLeakage check: PASSED - every patient belongs to exactly one split.")
 
 
 def main() -> None:
@@ -162,15 +245,24 @@ def main() -> None:
     if not args.metadata_csv.exists():
         raise FileNotFoundError(f"Metadata CSV not found: {args.metadata_csv}")
 
-    df = pd.read_csv(args.metadata_csv)
-    cohort = build_cohort(df)
+    original = pd.read_csv(args.metadata_csv)
+    cohort = build_cohort(original)
+    invalid_age_count = int(cohort.attrs.get("invalid_age_count", 0))
+
+    cohort, cross_age_patients = split_by_patient(cohort)
+    cohort = organise_columns(cohort)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     cohort.to_csv(args.output, index=False)
 
-    print_summary(df, cohort)
-    print(f"\nSaved cleaned cohort to: {args.output}")
-    print("\nNext step: inspect these counts before deciding train/validation/test splits.")
+    print_summary(
+        original,
+        cohort,
+        cross_age_patients,
+        invalid_age_count,
+    )
+    print(f"\nSaved cleaned and split cohort to: {args.output}")
+    print("\nNext step: handle class imbalance in the TRAINING split only.")
 
 
 if __name__ == "__main__":
