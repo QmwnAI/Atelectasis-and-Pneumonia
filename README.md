@@ -117,7 +117,7 @@ HS1502 Group 3
 
 ## Status
 
-🚧 **Work in progress**
+**Work in progress**
 
 Current stage: project design, dataset preparation, and model selection.
 
