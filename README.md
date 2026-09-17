@@ -56,34 +56,30 @@ Current plan:
 
 ### 2. Convolutional Neural Network (CNN)
 
-Develop a CNN that learns image features directly from chest X-rays and performs binary classification between atelectasis and pneumonia.
+Develop a CNN from scratch that learns relevant image features directly from the chest X-rays and performs binary classification between atelectasis and pneumonia.
 
-### 3. Feature Extraction + Traditional Classification
+### 3. Vision Transformer (ViT)
 
-Explore extracting informative representations from the X-ray images before applying a traditional machine learning classifier.
+Develop or adapt a Vision Transformer for the same classification task, allowing us to compare a transformer-based architecture with the CNN and traditional machine learning approach.
 
-This provides a comparison between end-to-end image classification and approaches that separate feature extraction from classification.
+### 4. Support Vector Machine (SVM)
 
-### 4. Vision Transformer (ViT)
-
-Develop or adapt a Vision Transformer approach for the same classification task, allowing comparison between transformer-based and convolutional approaches.
-
-### 5. Support Vector Machine (SVM)
-
-Train an SVM using suitable engineered or extracted image features as a traditional machine learning approach to the classification problem.
+Train an SVM using suitable engineered or extracted image features to provide a traditional machine learning approach to the classification problem.
 
 ## Experimental Design
 
 Each model will be evaluated on both age groups:
 
-| Model                           | < 65 | ≥ 65 |
-| ------------------------------- | ---- | ---- |
-| CNN                             | ✓    | ✓    |
-| Feature extraction + classifier | ✓    | ✓    |
-| Vision Transformer              | ✓    | ✓    |
-| SVM                             | ✓    | ✓    |
+| Model                    | < 65 | ≥ 65 |
+| ------------------------ | ---- | ---- |
+| CNN                      | ✓    | ✓    |
+| Vision Transformer (ViT) | ✓    | ✓    |
+| SVM                      | ✓    | ✓    |
 
-This allows comparison both **across models within an age group** and **across age groups for the same model**.
+This allows us to compare both:
+
+* **Across models:** How do CNN, ViT, and SVM performance differ within the same age group?
+* **Across age groups:** Does the performance of each model change between younger and older patients?
 
 ## Evaluation
 
@@ -104,7 +100,7 @@ Particular attention will be paid to false negatives given their potential impor
 
 ### ROC and AUC
 
-Receiver Operating Characteristic (ROC) curves and **Area Under the Curve (AUC)** will be used to evaluate how well each model distinguishes between the two classes across classification thresholds.
+Receiver Operating Characteristic (ROC) curves and **Area Under the Curve (AUC)** will be used to evaluate how well each model distinguishes between the two classes across different classification thresholds.
 
 Additional metrics such as accuracy, precision, recall/sensitivity, specificity, and F1-score may also be considered where appropriate.
 
@@ -118,7 +114,7 @@ Where differences are observed, we will consider possible explanations including
 * Disease and class distributions
 * Image characteristics
 * Features learned or extracted by different models
-* Differences between convolutional, transformer-based, and feature-based approaches
+* Differences between convolutional, transformer-based, and traditional machine learning approaches
 * Dataset size and composition
 
 These explanations will be treated as interpretations of the observed results rather than evidence of clinical causation.
