@@ -26,6 +26,27 @@ We aim to investigate:
 
 The original source is the **NIH ChestX-ray14 dataset**, containing 112,120 frontal chest X-ray images together with disease labels and patient metadata.
 
+### Data Sources and Provenance
+
+The full original dataset is **not stored in this GitHub repository**.
+
+- **Original data provider:** NIH Clinical Center
+- **Official NIH download:** https://nihcc.app.box.com/v/ChestXray-NIHCC
+- **Official dataset documentation:** https://docs.cloud.google.com/healthcare-api/docs/resources/public-datasets/nih-chest
+- **Kaggle mirror used for computational access in this project:** https://www.kaggle.com/datasets/nih-chest-xrays/data
+
+The NIH Clinical Center is the original data provider. Kaggle is used only as a convenient computational mirror of the NIH dataset; it is not the original source of the data.
+
+The dataset should be cited as:
+
+> Wang, X., Peng, Y., Lu, L., Lu, Z., Bagheri, M., & Summers, R. M. (2017). *ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases*. IEEE Conference on Computer Vision and Pattern Recognition (CVPR).
+
+Paper: https://openaccess.thecvf.com/content_cvpr_2017/html/Wang_ChestX-ray8_Hospital-Scale_Chest_CVPR_2017_paper.html
+
+Our data flow is therefore:
+
+`NIH ChestX-ray14 (112,120 X-rays) → clean_data.py / preparation pipeline → frozen cleaned_cohort.csv (12,464 X-rays) → CNN / ViT / SVM`
+
 ### Frozen Study Cohort
 
 **All CNN, ViT, and SVM experiments in this project must use the same frozen `cleaned_cohort.csv`.** This CSV defines the exact **12,464 X-rays** included in the study and their fixed age-group and train/validation/test assignments. Models should not independently regenerate or randomly re-split the cohort, as doing so would make model comparisons inconsistent.
