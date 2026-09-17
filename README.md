@@ -1,6 +1,6 @@
 # Machine Learning for Radiographic Differential Diagnosis of Atelectasis and Pneumonia Across Age Groups
 
-**HS1502 — Conceptual Introduction to Machine Learning**
+**HS1502 — Conceptual Introduction to Machine Learning**  
 National University of Singapore
 
 ## Overview
@@ -9,7 +9,7 @@ Atelectasis and pneumonia can present with similar features on chest X-rays, pot
 
 This project investigates whether different machine learning approaches perform differently when distinguishing **atelectasis from pneumonia across younger and older patient populations**.
 
-Using the **NIH ChestX-ray14 dataset**, we will compare several machine learning models on two age groups and evaluate whether the most effective modelling approach differs between them.
+Using the **NIH ChestX-ray14 dataset**, we will compare multiple machine learning models across two age groups and investigate whether model performance varies with age.
 
 ## Research Question
 
@@ -17,69 +17,139 @@ Using the **NIH ChestX-ray14 dataset**, we will compare several machine learning
 
 We aim to investigate:
 
-* How well different machine learning models distinguish atelectasis from pneumonia.
-* Whether their performance changes between younger and older patients.
-* Whether different models are better suited to different age groups.
-* What characteristics of the models, data, or radiographic presentation might explain any observed differences.
+- How well different machine learning models distinguish atelectasis from pneumonia.
+- Whether their performance changes between younger and older patients.
+- Whether different models are better suited to different age groups.
+- What characteristics of the models, data, or radiographic presentation might explain any observed differences.
 
 ## Dataset
 
-The project uses the **NIH ChestX-ray14 dataset**, which contains frontal chest X-ray images together with disease labels and patient metadata.
+The project uses the **NIH ChestX-ray14 dataset**, containing 112,120 frontal chest X-ray images together with disease labels and patient metadata.
 
-For this project, we will focus on cases containing:
+The X-ray images are accessed through the Kaggle-hosted copy of ChestX-ray14 rather than stored in this repository. This keeps the GitHub repository lightweight while allowing all group members to work from the same underlying dataset.
 
-* **Atelectasis**
-* **Pneumonia**
+## Data Preparation
 
-The dataset will then be divided according to patient age for separate model evaluation.
+The initial data-cleaning and splitting pipeline has been implemented in `clean_data.py`.
 
-## Planned Methodology
+### Disease Selection
 
-> **Note:** The methodology below represents our current project plan and may change as we explore the dataset and evaluate the feasibility of each approach.
+The study cohort includes X-rays containing exactly one of the two target conditions:
 
-### 1. Data Cleaning and Preparation
+- **Atelectasis present, Pneumonia absent → Atelectasis**
+- **Pneumonia present, Atelectasis absent → Pneumonia**
+- Images containing both target diseases are excluded because the binary target would be ambiguous.
+- Images containing neither target disease are excluded.
+- Other co-occurring findings are retained.
 
-The dataset will first be filtered and prepared for the classification task.
+After disease filtering and age validation, the final cohort contains:
 
-Current plan:
+- **12,464 X-rays**
+- **5,286 unique patients**
 
-1. Retain relevant atelectasis and pneumonia cases.
-2. Establish how multi-label cases will be handled.
-3. Divide patients into two age groups:
+### Age Groups
 
-   * **< 65 years old**
-   * **≥ 65 years old**
-4. Examine the distribution of atelectasis and pneumonia within each group.
-5. Address class imbalance where necessary.
-6. Create training, validation, and test splits while preventing patient-level data leakage.
-7. Perform image preprocessing required by the different models.
+X-rays are divided according to the patient's recorded age at the time of the image:
 
-### 2. Convolutional Neural Network (CNN)
+- **< 65 years old**
+- **≥ 65 years old**
 
-Develop a CNN from scratch that learns relevant image features directly from the chest X-rays and performs binary classification between atelectasis and pneumonia.
+Patient ages outside the range **1–120 years** are treated as invalid. Two records were removed for implausible ages.
 
-### 3. Vision Transformer (ViT)
+The resulting cohort is:
 
-Develop or adapt a Vision Transformer for the same classification task, allowing us to compare a transformer-based architecture with the CNN and traditional machine learning approach.
+| Age group | Atelectasis | Pneumonia | Total |
+| --- | ---: | ---: | ---: |
+| < 65 | 9,211 | 1,008 | 10,219 |
+| ≥ 65 | 2,085 | 160 | 2,245 |
+| **Total** | **11,296** | **1,168** | **12,464** |
 
-### 4. Support Vector Machine (SVM)
+### Patient-Level Splitting
 
-Train an SVM using suitable engineered or extracted image features to provide a traditional machine learning approach to the classification problem.
+The cohort is divided into:
+
+- **60% training**
+- **20% validation**
+- **20% testing**
+
+Splitting is performed at the **patient level**, meaning all X-rays belonging to the same patient remain in the same train, validation, or test partition. This prevents patient-level data leakage.
+
+A small number of patients have X-rays recorded on both sides of the 65-year age threshold. These **49 cross-age patients are retained but assigned to the training set only**, preventing the same patient from contributing to both age groups in the validation or test comparison.
+
+The remaining patients are stratified by age group and whether they contribute a Pneumonia image to help preserve representation of the minority class.
+
+### Final Split
+
+| Split | Age group | Atelectasis X-rays | Pneumonia X-rays |
+| --- | --- | ---: | ---: |
+| Train | < 65 | 5,570 | 613 |
+| Train | ≥ 65 | 1,307 | 111 |
+| Validation | < 65 | 1,867 | 188 |
+| Validation | ≥ 65 | 436 | 22 |
+| Test | < 65 | 1,774 | 207 |
+| Test | ≥ 65 | 342 | 27 |
+
+All 12,464 selected X-rays were successfully matched to image files in the Kaggle dataset.
+
+## Class Imbalance
+
+Atelectasis substantially outnumbers Pneumonia in both age groups. Because a model could achieve high raw accuracy by disproportionately predicting Atelectasis, accuracy alone will not be treated as the primary measure of model performance.
+
+Class imbalance will be addressed **during training only** using class weighting. Validation and test distributions remain unaltered.
+
+For the current training split, balanced class weights are approximately:
+
+| Age group | Atelectasis | Pneumonia |
+| --- | ---: | ---: |
+| < 65 | 0.555 | 5.043 |
+| ≥ 65 | 0.542 | 6.387 |
+
+Weights will be calculated programmatically rather than hard-coded so they remain consistent if the cohort changes.
+
+## Image Preprocessing
+
+All selected NIH images are 1024 × 1024 pixels. Within the final cohort:
+
+- 12,429 images are stored as grayscale (`L`).
+- 35 images are stored as `RGBA`.
+
+Images will therefore be converted to a consistent format when loaded rather than modifying the original dataset.
+
+For the CNN baseline, the current preprocessing pipeline is:
+
+1. Convert to grayscale.
+2. Resize from **1024 × 1024** to **224 × 224**.
+3. Convert pixel values to tensors scaled to **0–1**.
+
+Model-specific preprocessing may differ where required, particularly for pretrained Vision Transformer architectures.
+
+## Planned Models
+
+### 1. Convolutional Neural Network (CNN)
+
+A CNN will be developed from scratch to learn image features directly from the chest X-rays and perform binary classification between atelectasis and pneumonia.
+
+The same architecture and training procedure will be used for both age groups so differences in performance can be compared meaningfully.
+
+### 2. Vision Transformer (ViT)
+
+A Vision Transformer will be developed or adapted for the same classification task, allowing comparison between transformer-based and convolutional approaches.
+
+### 3. Support Vector Machine (SVM)
+
+An SVM using suitable engineered or extracted image features will provide a traditional machine learning approach to the classification problem.
 
 ## Experimental Design
 
 Each model will be evaluated on both age groups:
 
-| Model                    | < 65 | ≥ 65 |
-| ------------------------ | ---- | ---- |
-| CNN                      | ✓    | ✓    |
-| Vision Transformer (ViT) | ✓    | ✓    |
-| SVM                      | ✓    | ✓    |
+| Model | < 65 | ≥ 65 |
+| --- | :---: | :---: |
+| CNN | ✓ | ✓ |
+| Vision Transformer (ViT) | ✓ | ✓ |
+| SVM | ✓ | ✓ |
 
-This allows us to compare both:
-
-* **Across models:** How do CNN, ViT, and SVM performance differ within the same age group?
-* **Across age groups:** Does the performance of each model change between younger and older patients?
+This allows comparison both **across models within the same age group** and **across age groups for the same modelling approach**.
 
 ## Evaluation
 
@@ -89,53 +159,38 @@ Model performance will be assessed using multiple classification metrics.
 
 For each model and age group, we will examine:
 
-* True Positives (TP)
-* True Negatives (TN)
-* False Positives (FP)
-* False Negatives (FN)
+- True Positives (TP)
+- True Negatives (TN)
+- False Positives (FP)
+- False Negatives (FN)
 
 ### False Negatives
 
-Particular attention will be paid to false negatives given their potential importance in a medical classification setting. An appropriate rate, rather than simply the raw number of false negatives, will be used when comparing datasets of different sizes.
+Particular attention will be paid to false negatives given their potential importance in a medical classification setting. Rates rather than only raw counts will be used when comparing groups of different sizes.
 
 ### ROC and AUC
 
-Receiver Operating Characteristic (ROC) curves and **Area Under the Curve (AUC)** will be used to evaluate how well each model distinguishes between the two classes across different classification thresholds.
+Receiver Operating Characteristic (ROC) curves and **Area Under the Curve (AUC)** will be used to evaluate how well each model separates the two classes across classification thresholds.
 
-Additional metrics such as accuracy, precision, recall/sensitivity, specificity, and F1-score may also be considered where appropriate.
-
-## Analysis
-
-After evaluating the models, we will investigate whether model performance differs systematically between the two age groups.
-
-Where differences are observed, we will consider possible explanations including:
-
-* Differences in radiographic presentation across age groups
-* Disease and class distributions
-* Image characteristics
-* Features learned or extracted by different models
-* Differences between convolutional, transformer-based, and traditional machine learning approaches
-* Dataset size and composition
-
-These explanations will be treated as interpretations of the observed results rather than evidence of clinical causation.
+Additional metrics such as precision, recall/sensitivity, specificity, F1-score, and accuracy will also be considered where appropriate.
 
 ## Key Experimental Considerations
 
 ### Class Imbalance
 
-The number of atelectasis and pneumonia cases may differ substantially. Appropriate sampling strategies, class weighting, and evaluation metrics may therefore be necessary.
+Pneumonia is substantially less common than atelectasis in the selected cohort, particularly among patients aged 65 and above. Class weighting and appropriate evaluation metrics are therefore important.
 
 ### Sample Size
 
-Splitting the dataset by age reduces the amount of data available within each subgroup. Each group must contain sufficient examples of both conditions for meaningful comparison.
+The ≥65 Pneumonia subgroup is small. The final test set contains 27 Pneumonia X-rays from 21 patients aged 65 and above. Small performance differences between models in this subgroup must therefore be interpreted cautiously.
 
 ### Patient-Level Data Leakage
 
-Multiple images may belong to the same patient. Images from the same patient should not appear across training and test sets, as this could artificially inflate measured performance.
+Multiple X-rays may belong to the same patient. All images belonging to a patient are kept within a single train, validation, or test split.
 
-### Label Definition
+### Multi-label Findings
 
-A clear inclusion/exclusion rule will be established for images containing both atelectasis and pneumonia or additional disease labels before model training.
+ChestX-ray14 is a multi-label dataset. Other radiographic findings are permitted in the selected cohort as long as an image does not contain both Atelectasis and Pneumonia. These co-occurring findings may act as confounding features and will be acknowledged as a limitation.
 
 ### Clinical Interpretation
 
@@ -145,17 +200,23 @@ Differences in model performance across age groups do not by themselves establis
 
 **HS1502 Group 3**
 
-* Sizhe
-* Brandon
-* Yilun
-* Violet
-* Thaddeus
+- Sizhe
+- Brandon
+- Yilun
+- Violet
+- Thaddeus
 
 ## Project Status
 
 **Work in progress**
 
-The methodology, age thresholds, model architectures, preprocessing pipeline, and evaluation procedure remain subject to refinement as the project progresses.
+- Data cleaning and cohort selection: **Completed**
+- Patient-level train/validation/test splitting: **Completed**
+- Image loading and preprocessing pipeline: **Validated**
+- CNN development: **In progress**
+- ViT development: **Planned**
+- SVM development: **Planned**
+- Model evaluation and comparison: **Planned**
 
 ## Disclaimer
 
