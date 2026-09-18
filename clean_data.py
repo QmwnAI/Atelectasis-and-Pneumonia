@@ -1,4 +1,4 @@
-"""Prepare and split NIH ChestX-ray14 metadata for the HS1502 project.
+"""Reproduce the frozen NIH ChestX-ray14 cohort for the HS1502 project.
 
 Study cohort:
 - Atelectasis present, Pneumonia absent -> Atelectasis
@@ -9,11 +9,12 @@ Study cohort:
 - Patient age must be between 1 and 120 years.
 
 Age groups:
-- < 65 years -> under_65
-- >= 65 years -> over_65
+- < 65 years -> <65
+- >= 65 years -> >=65
 
 Data splitting:
 - 60% train / 20% validation / 20% test at the patient level.
+- RANDOM_STATE=42 is fixed so the cohort can be reproduced.
 - All X-rays from a patient remain in exactly one split.
 - Patients with X-rays in both age groups are forced into training so the
   validation and test age-group comparisons contain mutually exclusive patients.
@@ -102,7 +103,7 @@ def build_cohort(df: pd.DataFrame) -> pd.DataFrame:
     cohort["age"] = cohort["age"].astype(int)
 
     cohort["age_group"] = cohort["age"].apply(
-        lambda age: "under_65" if age < AGE_CUTOFF else "over_65"
+        lambda age: "<65" if age < AGE_CUTOFF else ">=65"
     )
 
     cohort.attrs["invalid_age_count"] = invalid_age_count
@@ -181,21 +182,22 @@ def split_by_patient(cohort: pd.DataFrame) -> tuple[pd.DataFrame, set[int]]:
 
 
 def organise_columns(cohort: pd.DataFrame) -> pd.DataFrame:
-    preferred_columns = [
+    # Match the frozen cleaned_cohort.csv schema used by all model notebooks.
+    output_columns = [
         "Image Index",
         "Patient ID",
-        "age",
-        "age_group",
-        "label",
-        "split",
+        "Patient Age",
+        "Patient Gender",
+        "View Position",
         "Finding Labels",
+        "label",
+        "age_group",
+        "split",
     ]
-    remaining_columns = [col for col in cohort.columns if col not in preferred_columns]
-    return (
-        cohort[preferred_columns + remaining_columns]
-        .sort_values(["split", "age_group", "label", "Patient ID", "Image Index"])
-        .reset_index(drop=True)
-    )
+    missing = [col for col in output_columns if col not in cohort.columns]
+    if missing:
+        raise ValueError("Cannot create frozen cohort; missing output column(s): " + ", ".join(missing))
+    return cohort[output_columns].reset_index(drop=True)
 
 
 def print_summary(
@@ -228,7 +230,7 @@ def print_summary(
     print(patient_summary.to_string())
 
     older_pneumonia = cohort[
-        (cohort["age_group"] == "over_65") & (cohort["label"] == TARGET_B)
+        (cohort["age_group"] == ">=65") & (cohort["label"] == TARGET_B)
     ]
     print("\n>=65 Pneumonia X-rays by split:")
     print(older_pneumonia["split"].value_counts().to_string())
@@ -262,7 +264,9 @@ def main() -> None:
         invalid_age_count,
     )
     print(f"\nSaved cleaned and split cohort to: {args.output}")
-    print("\nNext step: handle class imbalance in the TRAINING split only.")
+    print("\nThis CSV is the frozen cohort definition. CNN, ViT and SVM experiments should")
+    print("consume this fixed CSV rather than independently re-splitting the patients.")
+    print("Class imbalance should be handled in the TRAINING split only.")
 
 
 if __name__ == "__main__":
