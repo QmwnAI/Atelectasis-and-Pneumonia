@@ -141,6 +141,32 @@ For the CNN baseline, the current preprocessing pipeline is:
 
 Model-specific preprocessing may differ where required, particularly for pretrained Vision Transformer architectures. Regardless of preprocessing, **all models must use the same rows and fixed split defined by `cleaned_cohort.csv`.**
 
+## Reproducible Notebooks
+
+The full Kaggle notebooks are available here:
+
+- **Data preparation notebook:** https://www.kaggle.com/code/teddyqmwn/hs1502-prepared-atelectasis-pneumonia-dataset
+- **CNN experiment notebook:** https://www.kaggle.com/code/teddyqmwn/cnn-notebook
+
+The data-preparation notebook constructs the frozen 12,464-X-ray cohort from the NIH ChestX-ray14 source. The CNN notebook contains the full multi-seed training, validation-only threshold selection, confusion-matrix analysis, and final test evaluation. Clean script versions are also provided in this repository as `clean_data.py` and `train_cnn.py`.
+
+## Final CNN Test Results
+
+The CNN was trained separately for each age group using the same architecture and hyperparameters with three fixed seeds (42, 123, and 2026). For each run, early stopping used validation loss and the classification threshold was selected on validation data using Youden's J statistic. That threshold was then frozen before evaluation on the untouched test set.
+
+Results below are **mean +/- sample SD across the three fixed-seed test runs**.
+
+| Test metric | < 65 | >= 65 |
+| --- | ---: | ---: |
+| ROC-AUC | **0.6044 +/- 0.0031** | **0.4628 +/- 0.0483** |
+| Pneumonia sensitivity | **0.6393 +/- 0.0590** | **0.3704 +/- 0.1697** |
+| Specificity | **0.5115 +/- 0.0592** | **0.5936 +/- 0.0937** |
+| Pneumonia precision | **0.1328 +/- 0.0062** | **0.0648 +/- 0.0141** |
+| False-negative rate | **0.3607 +/- 0.0590** | **0.6296 +/- 0.1697** |
+| Accuracy | **0.5248 +/- 0.0475** | **0.5772 +/- 0.0746** |
+
+Across these three runs, the <65 CNN produced higher and more stable test ROC-AUC and higher Pneumonia sensitivity, whereas the >=65 CNN showed greater variability and a higher false-negative rate. These results should be interpreted cautiously: the >=65 test subgroup contains only **27 Pneumonia X-rays**, so its performance estimates are substantially less precise. The observed difference does not by itself establish that patient age caused the difference in model performance; sample size, class imbalance, and other cohort differences remain important alternative explanations.
+
 ## Planned Models
 
 ### 1. Convolutional Neural Network (CNN)
@@ -234,8 +260,8 @@ Differences in model performance across age groups do not by themselves establis
 - Frozen `cleaned_cohort.csv` and fixed model splits: **Completed**
 - Reduced 12,464-image cohort: **Prepared**
 - Image loading and preprocessing pipeline: **Validated**
-- CNN baseline architecture and training pipeline: **Implemented**
-- CNN reproducibility / fixed-seed validation experiments: **In progress**
+- CNN baseline architecture and training pipeline: **Completed**
+- CNN three-seed validation and final test evaluation: **Completed**
 - ViT development: **Planned**
 - SVM development: **Planned**
 - Model evaluation and comparison: **Planned**
