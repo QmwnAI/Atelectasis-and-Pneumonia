@@ -120,16 +120,9 @@ All 12,464 selected X-rays were successfully matched to their corresponding imag
 
 Atelectasis substantially outnumbers Pneumonia in both age groups. Because a model could achieve high raw accuracy by disproportionately predicting Atelectasis, accuracy alone will not be treated as the primary measure of model performance.
 
-Class imbalance will be addressed **during training only** using class weighting. Validation and test distributions remain unaltered.
+Class imbalance is addressed **during training only** using class weighting. Validation and test distributions remain unaltered.
 
-For the current training split, balanced class weights are approximately:
-
-| Age group | Atelectasis | Pneumonia |
-| --- | ---: | ---: |
-| < 65 | 0.555 | 5.043 |
-| ≥ 65 | 0.542 | 6.387 |
-
-Weights will be calculated programmatically rather than hard-coded so they remain consistent if the cohort changes.
+For the binary CNN, Pneumonia is encoded as the positive class and PyTorch `BCEWithLogitsLoss(pos_weight=...)` is used. The positive-class weight is calculated from the training data as `N_atelectasis / N_pneumonia`, giving approximately **9.086** for the <65 training set and **11.775** for the ≥65 training set. These values are calculated programmatically rather than hard-coded.
 
 ## Image Preprocessing
 
@@ -152,9 +145,11 @@ Model-specific preprocessing may differ where required, particularly for pretrai
 
 ### 1. Convolutional Neural Network (CNN)
 
-A CNN will be developed from scratch to learn image features directly from the chest X-rays and perform binary classification between atelectasis and pneumonia.
+A CNN is being developed from scratch to learn image features directly from the chest X-rays and perform binary classification between atelectasis and pneumonia. The current baseline uses four convolutional blocks (16, 32, 64, and 128 channels), ReLU activations, max pooling, global average pooling, dropout, and a single binary output. It contains **97,281 trainable parameters**.
 
-The same architecture and training procedure will be used for both age groups so differences in performance can be compared meaningfully.
+The CNN uses 224 × 224 single-channel inputs, Adam optimization with an initial learning rate of 0.001, weighted binary cross-entropy, and early stopping based on validation loss. The same architecture and training procedure are used for both age groups so differences in performance can be compared meaningfully.
+
+Initial exploratory validation runs showed that results, particularly for the much smaller ≥65 Pneumonia subgroup, may be sensitive to random initialization. Reproducibility controls are therefore being added and the CNN comparison will use fixed random seeds before final test-set evaluation. The test sets remain untouched during model development.
 
 ### 2. Vision Transformer (ViT)
 
@@ -239,7 +234,8 @@ Differences in model performance across age groups do not by themselves establis
 - Frozen `cleaned_cohort.csv` and fixed model splits: **Completed**
 - Reduced 12,464-image cohort: **Prepared**
 - Image loading and preprocessing pipeline: **Validated**
-- CNN development: **In progress**
+- CNN baseline architecture and training pipeline: **Implemented**
+- CNN reproducibility / fixed-seed validation experiments: **In progress**
 - ViT development: **Planned**
 - SVM development: **Planned**
 - Model evaluation and comparison: **Planned**
