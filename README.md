@@ -286,7 +286,7 @@ Differences in model performance across age groups do not by themselves establis
 - Image loading and preprocessing pipeline: **Validated**
 - CNN baseline architecture and training pipeline: **Completed**
 - CNN three-seed validation and final test evaluation: **Completed**
-- ViT development: **Planned**
+- ViT development: **Completed**
 - SVM development: **Planned**
 - Model evaluation and comparison: **Planned**
 
