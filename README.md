@@ -147,6 +147,7 @@ The full Kaggle notebooks are available here:
 
 - **Data preparation notebook:** https://www.kaggle.com/code/teddyqmwn/hs1502-prepared-atelectasis-pneumonia-dataset
 - **CNN experiment notebook:** https://www.kaggle.com/code/teddyqmwn/cnn-notebook
+- **ViT experiment notebook:** https://www.kaggle.com/code/yilunn/vit-notebook
 
 The data-preparation notebook constructs the frozen 12,464-X-ray cohort from the NIH ChestX-ray14 source. The CNN notebook contains the full multi-seed training, validation-only threshold selection, confusion-matrix analysis, and final test evaluation. Clean script versions are also provided in this repository as `clean_data.py` and `train_cnn.py`.
 
