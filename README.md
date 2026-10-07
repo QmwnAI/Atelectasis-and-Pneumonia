@@ -167,6 +167,30 @@ Results below are **mean +/- sample SD across the three fixed-seed test runs**.
 
 Across these three runs, the <65 CNN produced higher and more stable test ROC-AUC and higher Pneumonia sensitivity, whereas the >=65 CNN showed greater variability and a higher false-negative rate. These results should be interpreted cautiously: the >=65 test subgroup contains only **27 Pneumonia X-rays**, so its performance estimates are substantially less precise. The observed difference does not by itself establish that patient age caused the difference in model performance; sample size, class imbalance, and other cohort differences remain important alternative explanations.
 
+## Final ViT Test Results
+
+The ViT was trained separately for each age group using the same ViT-B/16 architecture and training procedure with three fixed seeds (42, 123, and 2026). For each run, early stopping used validation loss and the classification threshold was selected on validation data using Youden's J statistic. That threshold was then frozen before evaluation on the untouched test set.
+
+Results below are **mean +/- sample SD across the three fixed-seed test runs**.
+
+| Test metric           |                  < 65 |                 >= 65 |
+| --------------------- | --------------------: | --------------------: |
+| ROC-AUC               | **0.6512 +/- 0.0423** | **0.4755 +/- 0.0104** |
+| Pneumonia sensitivity | **0.6506 +/- 0.0560** | **0.5062 +/- 0.0566** |
+| Specificity           | **0.5654 +/- 0.0282** | **0.4990 +/- 0.0440** |
+| Pneumonia precision   | **0.1490 +/- 0.0156** | **0.0738 +/- 0.0026** |
+| False-negative rate   | **0.3494 +/- 0.0560** | **0.4938 +/- 0.0566** |
+| Accuracy              | **0.5743 +/- 0.0276** | **0.4995 +/- 0.0368** |
+| F1-score              | **0.2424 +/- 0.0241** | **0.1287 +/- 0.0055** |
+
+Across these three runs, the <65 ViT produced substantially better test discrimination than the >=65 ViT, with a mean ROC-AUC of **0.6512 +/- 0.0423** compared with **0.4755 +/- 0.0104**. The <65 group also achieved higher mean Pneumonia sensitivity, specificity, precision, accuracy, and F1-score.
+
+The individual >=65 ROC-AUC values were consistently below 0.50 (0.466, 0.474, and 0.486), while the relatively small ROC-AUC SD (**+/- 0.0104**) indicates that this poor performance was consistent across the three random seeds rather than being driven by a single unstable run. In contrast, the <65 group showed greater seed-to-seed variation in ROC-AUC (**+/- 0.0423**), although all three runs remained above 0.60.
+
+The >=65 group also showed substantially poorer threshold-dependent performance, with approximately 50% sensitivity and 50% specificity on average. Its low mean F1-score (**0.1287**) and precision (**0.0738**) reflect the difficulty of identifying Pneumonia cases while producing a large number of false-positive predictions.
+
+These results should be interpreted cautiously: the >=65 test subgroup contains only **27 Pneumonia X-rays**, compared with 207 Pneumonia X-rays in the <65 test subgroup. Therefore, the >=65 performance estimates are based on a much smaller number of positive cases, despite the apparently low variation across seeds. The observed difference does not by itself establish that patient age caused the difference in model performance; sample size, class imbalance, and other cohort differences remain important alternative explanations.
+
 ## Planned Models
 
 ### 1. Convolutional Neural Network (CNN)
