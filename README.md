@@ -192,6 +192,35 @@ The >=65 group also showed substantially poorer threshold-dependent performance,
 
 These results should be interpreted cautiously: the >=65 test subgroup contains only **27 Pneumonia X-rays**, compared with 207 Pneumonia X-rays in the <65 test subgroup. Therefore, the >=65 performance estimates are based on a much smaller number of positive cases, despite the apparently low variation across seeds. The observed difference does not by itself establish that patient age caused the difference in model performance; sample size, class imbalance, and other cohort differences remain important alternative explanations.
 
+## Final SVM Test Results
+
+The SVM was evaluated separately for the two age groups using the same frozen patient-level test sets used by the CNN and ViT. HOG image features were extracted before SVM training, and class weighting was used during training to address the substantial imbalance between Atelectasis and Pneumonia.
+
+The final test results were:
+
+| Test metric | < 65 | >= 65 |
+| --- | ---: | ---: |
+| ROC-AUC | **0.6615** | **0.6004** |
+| Pneumonia sensitivity | **0.5797** | **0.5556** |
+| Specificity | **0.6669** | **0.5936** |
+| Pneumonia precision | **0.1688** | **0.0974** |
+| F1-score | **0.2614** | **0.1657** |
+| False-negative rate | **0.4203** | **0.4444** |
+| Accuracy | **0.6577** | **0.5908** |
+
+The corresponding confusion-matrix counts were:
+
+| Age group | TN | FP | FN | TP |
+| --- | ---: | ---: | ---: | ---: |
+| < 65 | 1,183 | 591 | 87 | 120 |
+| >= 65 | 203 | 139 | 12 | 15 |
+
+The SVM achieved a higher ROC-AUC for the <65 group (**0.6615**) than for the >=65 group (**0.6004**). Its sensitivity and specificity were also higher in the <65 group. However, the difference between age groups is smaller than the corresponding difference observed for the CNN and ViT models.
+
+The SVM also produced relatively low Pneumonia precision in both groups (**0.1688** for <65 and **0.0974** for >=65), reflecting the substantial class imbalance in the study cohort and the large number of false-positive predictions.
+
+These results should be interpreted cautiously. The >=65 test set contains only **27 Pneumonia X-rays**, so its sensitivity, precision, F1-score, and false-negative rate are estimated from a small number of positive cases. The observed performance difference does not by itself establish that age caused the difference in model performance.
+
 ## Planned Models
 
 ### 1. Convolutional Neural Network (CNN)
