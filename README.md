@@ -235,9 +235,14 @@ Initial exploratory validation runs showed that results, particularly for the mu
 
 A Vision Transformer will be developed or adapted for the same classification task, allowing comparison between transformer-based and convolutional approaches.
 
+
 ### 3. Support Vector Machine (SVM)
 
-An SVM using suitable engineered or extracted image features will provide a traditional machine learning approach to the classification problem.
+A Support Vector Machine (SVM) was developed as a traditional machine learning approach to distinguish atelectasis from pneumonia. Unlike the CNN and ViT, which learn image representations directly, the SVM uses Histogram of Oriented Gradients (HOG) features extracted from the chest X-rays. Images were converted to grayscale, resized to **224 × 224**, normalized to pixel values between 0 and 1, and transformed into **6,084 HOG features per image** using 9 orientations, 16 × 16 pixels per cell, 2 × 2 cells per block, and L2-Hys block normalization.
+
+The HOG features were standardized using `StandardScaler`, fitted on training data only. A linear SVM (`LinearSVC`) with balanced class weighting was used to address the substantial class imbalance. The regularization parameter `C` was selected using validation ROC-AUC from five candidate values (0.0001, 0.0003, 0.001, 0.003, and 0.01). The selected values were **0.0001 for <65** and **0.003 for ≥65**.
+
+The SVM was trained separately for each age group using the same feature extraction and training procedure. Classification thresholds were selected using Youden's J statistic on validation data and frozen before final test evaluation. All experiments used the same frozen patient-level data splits as the CNN and ViT models.
 
 ## Experimental Design
 
