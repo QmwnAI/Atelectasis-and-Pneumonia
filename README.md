@@ -233,8 +233,11 @@ Initial exploratory validation runs showed that results, particularly for the mu
 
 ### 2. Vision Transformer (ViT)
 
-A Vision Transformer will be developed or adapted for the same classification task, allowing comparison between transformer-based and convolutional approaches.
+A Vision Transformer (ViT-B/16) is used to classify chest X-rays into atelectasis and pneumonia. Unlike the CNN, which learns local image features through convolutional filters, the ViT divides each 224 × 224 X-ray into 16 × 16 image patches and uses Transformer self-attention to learn relationships between different regions of the image. The model is pretrained on ImageNet-1K and its original classification head is replaced with a single binary output for atelectasis-vs-pneumonia classification. The model contains 85,799,425 trainable parameters.
 
+The ViT uses 224 × 224 three-channel inputs, with grayscale X-rays replicated across three channels and normalized using ImageNet mean and standard deviation values. It is trained using AdamW with an initial learning rate of 0.0001, weighted binary cross-entropy, and early stopping based on validation loss. The same architecture and training procedure are applied separately to the <65 and >=65 age groups, with fixed seeds 42, 123, and 2026 to assess reproducibility. Classification thresholds are selected using Youden's J statistic on the validation set only, before evaluation on the untouched test set.
+
+The ViT achieved modest discrimination for the <65 group but substantially poorer performance for the >=65 group. Because the >=65 test set contains only 27 Pneumonia X-rays, its performance estimates should be interpreted cautiously.
 
 ### 3. Support Vector Machine (SVM)
 
