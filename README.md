@@ -1,167 +1,276 @@
-# Machine Learning for Radiographic Differential Diagnosis of Atelectasis and Pneumonia Across Age Groups
-
-**HS1502 — Conceptual Introduction to Machine Learning**  
+Machine Learning for Radiographic Differential Diagnosis of Atelectasis and Pneumonia Across Age Groups
+HS1502 — Conceptual Introduction to Machine Learning
 National University of Singapore
 
-## Overview
+Overview
+Atelectasis and pneumonia can present with similar features on chest X-rays, potentially making radiographic differentiation challenging. Patient age may also influence these radiographic presentations and therefore affect the performance of machine learning models attempting to distinguish between the two conditions.
 
-Atelectasis and pneumonia can present with similar features on chest X-rays, potentially making radiographic differentiation challenging. This project investigates whether machine-learning models distinguish the two conditions differently across patient age groups.
+This project investigates whether different machine learning approaches perform differently when distinguishing atelectasis from pneumonia across younger and older patient populations.
 
-**Research question:** Does the performance of machine-learning models in differentiating atelectasis from pneumonia on chest X-rays vary between patients aged <65 and patients aged >=65?
+Using the NIH ChestX-ray14 dataset, we will compare multiple machine learning models across two age groups and investigate whether model performance varies with age.
 
-This is an educational research project, not a clinical diagnostic tool.
+Research Question
+Does the performance of machine learning models in differentiating atelectasis from pneumonia on chest X-rays vary across age groups?
 
-## Dataset and provenance
+We aim to investigate:
 
-The study uses the **NIH ChestX-ray14** dataset.
+How well different machine learning models distinguish atelectasis from pneumonia.
+Whether their performance changes between younger and older patients.
+Whether different models are better suited to different age groups.
+What characteristics of the models, data, or radiographic presentation might explain any observed differences.
+Dataset
+The original source is the NIH ChestX-ray14 dataset, containing 112,120 frontal chest X-ray images together with disease labels and patient metadata.
 
-- Original data provider: NIH Clinical Center
-- Official download: https://nihcc.app.box.com/v/ChestXray-NIHCC
-- Official dataset documentation: https://docs.cloud.google.com/healthcare-api/docs/resources/public-datasets/nih-chest
-- Kaggle mirror used for computational access: https://www.kaggle.com/datasets/nih-chest-xrays/data
-- Paper: Wang, X., Peng, Y., Lu, L., Lu, Z., Bagheri, M., & Summers, R. M. (2017). *ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases*. CVPR. https://openaccess.thecvf.com/content_cvpr_2017/html/Wang_ChestX-ray8_Hospital-Scale_Chest_CVPR_2017_paper.html
+Data Sources and Provenance
+The full original dataset is not stored in this GitHub repository.
 
-The original images are not stored in this GitHub repository.
+Original data provider: NIH Clinical Center
+Official NIH download: https://nihcc.app.box.com/v/ChestXray-NIHCC
+Official dataset documentation: https://docs.cloud.google.com/healthcare-api/docs/resources/public-datasets/nih-chest
+Kaggle mirror used for computational access in this project: https://www.kaggle.com/datasets/nih-chest-xrays/data
+The NIH Clinical Center is the original data provider. Kaggle is used only as a convenient computational mirror of the NIH dataset; it is not the original source of the data.
 
-### Frozen cohort
+The dataset should be cited as:
 
-The frozen cohort contains **12,464 X-rays from 5,286 unique patients**. All CNN, ViT, and SVM experiments use the same `cleaned_cohort.csv` cohort definition and fixed patient-level splits. Models should not independently regenerate or randomly re-split the cohort.
+Wang, X., Peng, Y., Lu, L., Lu, Z., Bagheri, M., & Summers, R. M. (2017). ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases. IEEE Conference on Computer Vision and Pattern Recognition (CVPR).
 
-The selected image labels are:
-- Atelectasis present and Pneumonia absent → **Atelectasis**
-- Pneumonia present and Atelectasis absent → **Pneumonia**
-- Images containing both target diseases, or neither target disease, are excluded.
-- Other co-occurring findings are retained.
+Paper: https://openaccess.thecvf.com/content_cvpr_2017/html/Wang_ChestX-ray8_Hospital-Scale_Chest_CVPR_2017_paper.html
 
-Patients' recorded ages are divided into **<65** and **>=65**. Ages outside 1–120 are invalid. Cross-age patients with images on both sides of the age threshold are retained in training only to avoid cross-age validation/test leakage.
+Our data flow is therefore:
 
-| Split | Age group | Atelectasis | Pneumonia |
-|---|---|---:|---:|
-| Train | <65 | 5,570 | 613 |
-| Train | >=65 | 1,307 | 111 |
-| Validation | <65 | 1,867 | 188 |
-| Validation | >=65 | 436 | 22 |
-| Test | <65 | 1,774 | 207 |
-| Test | >=65 | 342 | 27 |
+NIH ChestX-ray14 (112,120 X-rays) → clean_data.py / preparation pipeline → frozen cleaned_cohort.csv (12,464 X-rays) → CNN / ViT / SVM
 
-All selected images were matched to files in the prepared 4.63 GB image cohort.
+Frozen Study Cohort
+All CNN, ViT, and SVM experiments in this project must use the same frozen cleaned_cohort.csv. This CSV defines the exact 12,464 X-rays included in the study and their fixed age-group and train/validation/test assignments. Models should not independently regenerate or randomly re-split the cohort, as doing so would make model comparisons inconsistent.
 
-## Data preparation and preprocessing
+The cleaned CSV contains one row per selected X-ray, including its image filename, patient ID, recorded age, original finding labels, project target label, age group, and fixed dataset split.
 
-The preparation pipeline is documented in `clean_data.py`. The prepared cohort is also available through the Kaggle data-preparation notebook below.
+The corresponding 12,464 original-resolution X-rays have also been prepared as a reduced 4.63 GB image set from the Kaggle-hosted copy of ChestX-ray14. The full 112,120-image dataset is therefore not required for model development once the prepared cohort is available.
 
-The CNN uses single-channel 224 x 224 images with pixel values scaled to 0–1. The ViT uses 224 x 224 three-channel inputs, with grayscale images replicated across channels and normalized for its ImageNet-pretrained backbone. The SVM extracts HOG features from grayscale 224 x 224 images (6,084 features per image) and standardizes features using training data only.
+The repository's clean_data.py documents and reproduces the cohort-selection and patient-level splitting methodology. The frozen cleaned_cohort.csv is the authoritative split used for model comparison.
 
-## Notebooks and code
+Data Preparation
+Disease Selection
+The study cohort includes X-rays containing exactly one of the two target conditions:
 
-- **Data preparation notebook:** https://www.kaggle.com/code/teddyqmwn/hs1502-prepared-atelectasis-pneumonia-dataset
-- **CNN experiment notebook:** https://www.kaggle.com/code/teddyqmwn/cnn-notebook
-- **ViT experiment notebook:** https://www.kaggle.com/code/yilunn/vit-notebook
-- **SVM experiment notebook:** https://www.kaggle.com/code/tianningwangv/svm-notebook
-- Cohort preparation script: `clean_data.py`
-- CNN training script: `train_cnn.py`
-- ViT training script: `train_vit.py`
-- Detailed seed-level and summary CSVs are under `results/`.
+Atelectasis present, Pneumonia absent → Atelectasis
+Pneumonia present, Atelectasis absent → Pneumonia
+Images containing both target diseases are excluded because the binary target would be ambiguous.
+Images containing neither target disease are excluded.
+Other co-occurring findings are retained.
+After disease filtering and age validation, the final cohort contains:
 
-## Model methodology
+12,464 X-rays
+5,286 unique patients
+Age Groups
+X-rays are divided according to the patient's recorded age at the time of the image:
 
-### CNN
+< 65 years old
+≥ 65 years old
+Patient ages outside the range 1–120 years are treated as invalid. Two records were removed for implausible ages.
 
-The CNN is trained from scratch with four convolutional blocks (16, 32, 64, and 128 channels), ReLU, max pooling, global average pooling, dropout, and a binary output; it has 97,281 trainable parameters. Training uses Adam (learning rate 0.001), class-weighted binary cross-entropy, and early stopping on validation loss. Pneumonia is the positive class. The three fixed seeds are 42, 123, and 2026.
+Age group	Atelectasis	Pneumonia	Total
+< 65	9,211	1,008	10,219
+≥ 65	2,085	160	2,245
+Total	11,296	1,168	12,464
+Patient-Level Splitting
+The cohort is divided into:
 
-### Vision Transformer (ViT)
+60% training
+20% validation
+20% testing
+Splitting is performed at the patient level, meaning all X-rays belonging to the same patient remain in the same train, validation, or test partition. This prevents patient-level data leakage.
 
-The ViT-B/16 uses an ImageNet-1K-pretrained backbone and a replacement binary classification head. Training uses AdamW (initial learning rate 0.0001), class-weighted binary cross-entropy, early stopping on validation loss, and the same three seeds for each age group.
+A small number of patients have X-rays recorded on both sides of the 65-year age threshold. These 49 cross-age patients are retained but assigned to the training set only, preventing the same patient from contributing to both age groups in the validation or test comparison.
 
-### Support Vector Machine (SVM)
+The remaining patients are stratified by age group and whether they contribute a Pneumonia image to help preserve representation of the minority class.
 
-The SVM uses HOG features and a linear `LinearSVC` with balanced class weights. `StandardScaler` is fitted on training features only. The regularization parameter is selected using validation ROC-AUC from C values 0.0001, 0.0003, 0.001, 0.003, and 0.01. Selected values were 0.0001 for <65 and 0.003 for >=65.
+Fixed Split Used by All Models
+Split	Age group	Atelectasis X-rays	Pneumonia X-rays
+Train	< 65	5,570	613
+Train	≥ 65	1,307	111
+Validation	< 65	1,867	188
+Validation	≥ 65	436	22
+Test	< 65	1,774	207
+Test	≥ 65	342	27
+All 12,464 selected X-rays were successfully matched to their corresponding image files.
 
-### Threshold selection and evaluation
+Class Imbalance
+Atelectasis substantially outnumbers Pneumonia in both age groups. Because a model could achieve high raw accuracy by disproportionately predicting Atelectasis, accuracy alone will not be treated as the primary measure of model performance.
 
-For CNN and ViT runs, early stopping uses validation loss and the binary decision threshold is selected on validation data using Youden's J statistic, then frozen before test evaluation. Test results are not used to tune models or thresholds. The SVM uses the same frozen cohort and validation/test separation.
+Class imbalance is addressed during training only using class weighting. Validation and test distributions remain unaltered.
 
-Pneumonia is the positive class. Evaluation includes ROC-AUC, sensitivity, specificity, precision, false-negative rate, accuracy, and (where reported) F1-score. Because the classes are imbalanced, accuracy alone is not a suitable indicator of model quality.
+For the binary CNN, Pneumonia is encoded as the positive class and PyTorch BCEWithLogitsLoss(pos_weight=...) is used. The positive-class weight is calculated from the training data as N_atelectasis / N_pneumonia, giving approximately 9.086 for the <65 training set and 11.775 for the ≥65 training set. These values are calculated programmatically rather than hard-coded.
 
-## Final test results
+Image Preprocessing
+All selected NIH images are 1024 × 1024 pixels. Within the final cohort:
 
-CNN and ViT values are **mean +/- sample standard deviation across three fixed-seed runs**. SVM results are from a single final run, so across-seed standard deviations are not available.
+12,429 images are stored as grayscale (L).
+35 images are stored as RGBA.
+Images are converted to a consistent format when loaded rather than modifying the original files.
 
-### ROC-AUC comparison
+For the CNN baseline, the current preprocessing pipeline is:
 
-| Age group | CNN | ViT | SVM |
-|---|---:|---:|---:|
-| <65 | 0.6044 +/- 0.0031 | 0.6512 +/- 0.0423 | 0.6615 |
-| >=65 | 0.4628 +/- 0.0483 | 0.4755 +/- 0.0104 | 0.6004 |
+Convert to grayscale.
+Resize from 1024 × 1024 to 224 × 224.
+Convert pixel values to tensors scaled to 0–1.
+Model-specific preprocessing may differ where required, particularly for pretrained Vision Transformer architectures. Regardless of preprocessing, all models must use the same rows and fixed split defined by cleaned_cohort.csv.
 
-### CNN test metrics
+Reproducible Notebooks
+The full Kaggle notebooks are available here:
 
-| Metric | <65 | >=65 |
-|---|---:|---:|
-| ROC-AUC | 0.6044 +/- 0.0031 | 0.4628 +/- 0.0483 |
-| Pneumonia sensitivity | 0.6393 +/- 0.0590 | 0.3704 +/- 0.1697 |
-| Specificity | 0.5115 +/- 0.0592 | 0.5936 +/- 0.0937 |
-| Pneumonia precision | 0.1328 +/- 0.0062 | 0.0648 +/- 0.0141 |
-| False-negative rate | 0.3607 +/- 0.0590 | 0.6296 +/- 0.1697 |
-| Accuracy | 0.5248 +/- 0.0475 | 0.5772 +/- 0.0746 |
+Data preparation notebook: https://www.kaggle.com/code/teddyqmwn/hs1502-prepared-atelectasis-pneumonia-dataset
+CNN experiment notebook: https://www.kaggle.com/code/teddyqmwn/cnn-notebook
+ViT experiment notebook: https://www.kaggle.com/code/yilunn/vit-notebook
+SVM experiment notebook: https://www.kaggle.com/code/tianningwangv/svm-notebook
+The data-preparation notebook constructs the frozen 12,464-X-ray cohort from the NIH ChestX-ray14 source. The CNN notebook contains the full multi-seed training, validation-only threshold selection, confusion-matrix analysis, and final test evaluation. Clean script versions are also provided in this repository as clean_data.py and train_cnn.py.
 
-### ViT test metrics
+Final CNN Test Results
+The CNN was trained separately for each age group using the same architecture and hyperparameters with three fixed seeds (42, 123, and 2026). For each run, early stopping used validation loss and the classification threshold was selected on validation data using Youden's J statistic. That threshold was then frozen before evaluation on the untouched test set.
 
-| Metric | <65 | >=65 |
-|---|---:|---:|
-| ROC-AUC | 0.6512 +/- 0.0423 | 0.4755 +/- 0.0104 |
-| Pneumonia sensitivity | 0.6506 +/- 0.0560 | 0.5062 +/- 0.0566 |
-| Specificity | 0.5654 +/- 0.0282 | 0.4990 +/- 0.0440 |
-| Pneumonia precision | 0.1490 +/- 0.0156 | 0.0738 +/- 0.0026 |
-| False-negative rate | 0.3494 +/- 0.0560 | 0.4938 +/- 0.0566 |
-| Accuracy | 0.5743 +/- 0.0276 | 0.4995 +/- 0.0368 |
-| F1-score | 0.2424 +/- 0.0241 | 0.1287 +/- 0.0055 |
+Results below are mean +/- sample SD across the three fixed-seed test runs.
 
-### SVM test metrics
+Test metric	< 65	>= 65
+ROC-AUC	0.6044 +/- 0.0031	0.4628 +/- 0.0483
+Pneumonia sensitivity	0.6393 +/- 0.0590	0.3704 +/- 0.1697
+Specificity	0.5115 +/- 0.0592	0.5936 +/- 0.0937
+Pneumonia precision	0.1328 +/- 0.0062	0.0648 +/- 0.0141
+False-negative rate	0.3607 +/- 0.0590	0.6296 +/- 0.1697
+Accuracy	0.5248 +/- 0.0475	0.5772 +/- 0.0746
+Across these three runs, the <65 CNN produced higher and more stable test ROC-AUC and higher Pneumonia sensitivity, whereas the >=65 CNN showed greater variability and a higher false-negative rate. These results should be interpreted cautiously: the >=65 test subgroup contains only 27 Pneumonia X-rays, so its performance estimates are substantially less precise. The observed difference does not by itself establish that patient age caused the difference in model performance; sample size, class imbalance, and other cohort differences remain important alternative explanations.
 
-| Metric | <65 | >=65 |
-|---|---:|---:|
-| ROC-AUC | 0.6615 | 0.6004 |
-| Pneumonia sensitivity | 0.5797 | 0.5556 |
-| Specificity | 0.6669 | 0.5936 |
-| Pneumonia precision | 0.1688 | 0.0974 |
-| False-negative rate | 0.4203 | 0.4444 |
-| Accuracy | 0.6577 | 0.5908 |
-| F1-score | 0.2614 | 0.1657 |
+Final ViT Test Results
+The ViT was trained separately for each age group using the same ViT-B/16 architecture and training procedure with three fixed seeds (42, 123, and 2026). For each run, early stopping used validation loss and the classification threshold was selected on validation data using Youden's J statistic. That threshold was then frozen before evaluation on the untouched test set.
 
-SVM confusion matrices:
+Results below are mean +/- sample SD across the three fixed-seed test runs.
 
-| Age group | TN | FP | FN | TP |
-|---|---:|---:|---:|---:|
-| <65 | 1,183 | 591 | 87 | 120 |
-| >=65 | 203 | 139 | 12 | 15 |
+Test metric	< 65	>= 65
+ROC-AUC	0.6512 +/- 0.0423	0.4755 +/- 0.0104
+Pneumonia sensitivity	0.6506 +/- 0.0560	0.5062 +/- 0.0566
+Specificity	0.5654 +/- 0.0282	0.4990 +/- 0.0440
+Pneumonia precision	0.1490 +/- 0.0156	0.0738 +/- 0.0026
+False-negative rate	0.3494 +/- 0.0560	0.4938 +/- 0.0566
+Accuracy	0.5743 +/- 0.0276	0.4995 +/- 0.0368
+F1-score	0.2424 +/- 0.0241	0.1287 +/- 0.0055
+Across these three runs, the <65 ViT produced substantially better test discrimination than the >=65 ViT, with a mean ROC-AUC of 0.6512 +/- 0.0423 compared with 0.4755 +/- 0.0104. The <65 group also achieved higher mean Pneumonia sensitivity, specificity, precision, accuracy, and F1-score.
 
-## Interpretation and limitations
+The individual >=65 ROC-AUC values were consistently below 0.50 (0.466, 0.474, and 0.486), while the relatively small ROC-AUC SD (+/- 0.0104) indicates that this poor performance was consistent across the three random seeds rather than being driven by a single unstable run. In contrast, the <65 group showed greater seed-to-seed variation in ROC-AUC (+/- 0.0423), although all three runs remained above 0.60.
 
-In the <65 test group, the SVM had the highest single-run ROC-AUC (0.6615), followed closely by the ViT mean (0.6512). In the >=65 test group, the SVM had a higher ROC-AUC (0.6004) than the CNN and ViT means. This is a descriptive comparison, not a fully controlled estimate of model superiority, because the SVM results currently represent a single run while CNN and ViT each use three seeds.
+The >=65 group also showed substantially poorer threshold-dependent performance, with approximately 50% sensitivity and 50% specificity on average. Its low mean F1-score (0.1287) and precision (0.0738) reflect the difficulty of identifying Pneumonia cases while producing a large number of false-positive predictions.
 
-Across the neural models, discrimination was higher in the <65 group than in the >=65 group. The same age-group pattern was smaller for the SVM. These results alone do not establish that age causes performance differences; sample size, class imbalance, cohort differences, and other co-occurring findings may contribute.
+These results should be interpreted cautiously: the >=65 test subgroup contains only 27 Pneumonia X-rays, compared with 207 Pneumonia X-rays in the <65 test subgroup. Therefore, the >=65 performance estimates are based on a much smaller number of positive cases, despite the apparently low variation across seeds. The observed difference does not by itself establish that patient age caused the difference in model performance; sample size, class imbalance, and other cohort differences remain important alternative explanations.
 
-The >=65 test set contains only **27 Pneumonia X-rays**, compared with 207 in the <65 test set. Metrics for older patients—especially sensitivity, precision, and false-negative rate—are consequently estimated from few positive cases and should be interpreted cautiously. Performance may vary with cohort composition, and further external validation would be needed before drawing clinical conclusions.
+Final SVM Test Results
+The SVM was evaluated separately for the two age groups using the same frozen patient-level test sets used by the CNN and ViT. HOG image features were extracted before SVM training, and class weighting was used during training to address the substantial imbalance between Atelectasis and Pneumonia.
 
-## Team
+The final test results were:
 
-**HS1502 Group 3**
-- Sizhe
-- Brandon
-- Yilun
-- Violet
-- Thaddeus
+Test metric	< 65	>= 65
+ROC-AUC	0.6615	0.6004
+Pneumonia sensitivity	0.5797	0.5556
+Specificity	0.6669	0.5936
+Pneumonia precision	0.1688	0.0974
+F1-score	0.2614	0.1657
+False-negative rate	0.4203	0.4444
+Accuracy	0.6577	0.5908
+The corresponding confusion-matrix counts were:
 
-## Project status
+Age group	TN	FP	FN	TP
+< 65	1,183	591	87	120
+>= 65	203	139	12	15
+The SVM achieved a higher ROC-AUC for the <65 group (0.6615) than for the >=65 group (0.6004). Its sensitivity and specificity were also higher in the <65 group. However, the difference between age groups is smaller than the corresponding difference observed for the CNN and ViT models.
 
-- Data cleaning and cohort selection: **Completed**
-- Frozen cohort and patient-level splits: **Completed**
-- CNN development and evaluation: **Completed**
-- ViT development and evaluation: **Completed**
-- SVM development and evaluation: **Completed**
-- Final cross-model comparison and discussion: **In progress**
+The SVM also produced relatively low Pneumonia precision in both groups (0.1688 for <65 and 0.0974 for >=65), reflecting the substantial class imbalance in the study cohort and the large number of false-positive predictions.
 
-## Disclaimer
+These results should be interpreted cautiously. The >=65 test set contains only 27 Pneumonia X-rays, so its sensitivity, precision, F1-score, and false-negative rate are estimated from a small number of positive cases. The observed performance difference does not by itself establish that age caused the difference in model performance.
 
-This is an educational project for **HS1502: Conceptual Introduction to Machine Learning** at the National University of Singapore. These experimental models are **not intended for clinical diagnosis or medical decision-making**.
+Planned Models
+1. Convolutional Neural Network (CNN)
+A CNN is being developed from scratch to learn image features directly from the chest X-rays and perform binary classification between atelectasis and pneumonia. The current baseline uses four convolutional blocks (16, 32, 64, and 128 channels), ReLU activations, max pooling, global average pooling, dropout, and a single binary output. It contains 97,281 trainable parameters.
+
+The CNN uses 224 × 224 single-channel inputs, Adam optimization with an initial learning rate of 0.001, weighted binary cross-entropy, and early stopping based on validation loss. The same architecture and training procedure are used for both age groups so differences in performance can be compared meaningfully.
+
+Initial exploratory validation runs showed that results, particularly for the much smaller ≥65 Pneumonia subgroup, may be sensitive to random initialization. Reproducibility controls are therefore being added and the CNN comparison will use fixed random seeds before final test-set evaluation. The test sets remain untouched during model development.
+
+2. Vision Transformer (ViT)
+A Vision Transformer (ViT-B/16) is used to classify chest X-rays into atelectasis and pneumonia. Unlike the CNN, which learns local image features through convolutional filters, the ViT divides each 224 × 224 X-ray into 16 × 16 image patches and uses Transformer self-attention to learn relationships between different regions of the image. The model is pretrained on ImageNet-1K and its original classification head is replaced with a single binary output for atelectasis-vs-pneumonia classification. The model contains 85,799,425 trainable parameters.
+
+The ViT uses 224 × 224 three-channel inputs, with grayscale X-rays replicated across three channels and normalized using ImageNet mean and standard deviation values. It is trained using AdamW with an initial learning rate of 0.0001, weighted binary cross-entropy, and early stopping based on validation loss. The same architecture and training procedure are applied separately to the <65 and >=65 age groups, with fixed seeds 42, 123, and 2026 to assess reproducibility. Classification thresholds are selected using Youden's J statistic on the validation set only, before evaluation on the untouched test set.
+
+The ViT achieved modest discrimination for the <65 group but substantially poorer performance for the >=65 group. Because the >=65 test set contains only 27 Pneumonia X-rays, its performance estimates should be interpreted cautiously.
+
+3. Support Vector Machine (SVM)
+A Support Vector Machine (SVM) was developed as a traditional machine learning approach to distinguish atelectasis from pneumonia. Unlike the CNN and ViT, which learn image representations directly, the SVM uses Histogram of Oriented Gradients (HOG) features extracted from the chest X-rays. Images were converted to grayscale, resized to 224 × 224, normalized to pixel values between 0 and 1, and transformed into 6,084 HOG features per image using 9 orientations, 16 × 16 pixels per cell, 2 × 2 cells per block, and L2-Hys block normalization.
+
+The HOG features were standardized using StandardScaler, fitted on training data only. A linear SVM (LinearSVC) with balanced class weighting was used to address the substantial class imbalance. The regularization parameter C was selected using validation ROC-AUC from five candidate values (0.0001, 0.0003, 0.001, 0.003, and 0.01). The selected values were 0.0001 for <65 and 0.003 for ≥65.
+
+The SVM was trained separately for each age group using the same feature extraction and training procedure. Classification thresholds were selected using Youden's J statistic on validation data and frozen before final test evaluation. All experiments used the same frozen patient-level data splits as the CNN and ViT models.
+
+Experimental Design
+Each model will be evaluated on both age groups:
+
+Model	< 65	≥ 65
+CNN	✓	✓
+Vision Transformer (ViT)	✓	✓
+SVM	✓	✓
+This allows comparison both across models within the same age group and across age groups for the same modelling approach.
+
+Evaluation
+Model performance will be assessed using multiple classification metrics.
+
+Confusion Matrix
+For each model and age group, we will examine:
+
+True Positives (TP)
+True Negatives (TN)
+False Positives (FP)
+False Negatives (FN)
+False Negatives
+Particular attention will be paid to false negatives given their potential importance in a medical classification setting. Rates rather than only raw counts will be used when comparing groups of different sizes.
+
+ROC and AUC
+Receiver Operating Characteristic (ROC) curves and Area Under the Curve (AUC) will be used to evaluate how well each model separates the two classes across classification thresholds.
+
+Additional metrics such as precision, recall/sensitivity, specificity, F1-score, and accuracy will also be considered where appropriate.
+
+Key Experimental Considerations
+Class Imbalance
+Pneumonia is substantially less common than atelectasis in the selected cohort, particularly among patients aged 65 and above. Class weighting and appropriate evaluation metrics are therefore important.
+
+Sample Size
+The ≥65 Pneumonia subgroup is small. The final test set contains 27 Pneumonia X-rays from 21 patients aged 65 and above. Small performance differences between models in this subgroup must therefore be interpreted cautiously.
+
+Patient-Level Data Leakage
+Multiple X-rays may belong to the same patient. All images belonging to a patient are kept within a single train, validation, or test split.
+
+Multi-label Findings
+ChestX-ray14 is a multi-label dataset. Other radiographic findings are permitted in the selected cohort as long as an image does not contain both Atelectasis and Pneumonia. These co-occurring findings may act as confounding features and will be acknowledged as a limitation.
+
+Clinical Interpretation
+Differences in model performance across age groups do not by themselves establish that age causes differences in the radiographic presentation of either disease.
+
+Team
+HS1502 Group 3
+
+Sizhe
+Brandon
+Yilun
+Violet
+Thaddeus
+Project Status
+Work in progress
+
+Data cleaning and cohort selection: Completed
+Frozen cleaned_cohort.csv and fixed model splits: Completed
+Reduced 12,464-image cohort: Completed
+Image loading and preprocessing pipeline: Validated
+CNN baseline architecture and training pipeline: Completed
+CNN three-seed validation and final test evaluation: Completed
+ViT development: Completed
+SVM development: Completed
+Model evaluation and comparison: Planned
+Disclaimer
+This project is conducted for educational purposes as part of HS1502: Conceptual Introduction to Machine Learning at the National University of Singapore.
+
+The models developed in this project are experimental and are not intended for clinical diagnosis or medical decision-making.
+
