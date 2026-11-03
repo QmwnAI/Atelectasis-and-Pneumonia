@@ -197,6 +197,8 @@ These results should be interpreted cautiously: the >=65 test subgroup contains 
 
 The SVM was evaluated separately for the two age groups using the same frozen patient-level test sets used by the CNN and ViT. HOG image features were extracted before SVM training, and class weighting was used during training to address the substantial imbalance between Atelectasis and Pneumonia.
 
+The SVM experiments were conducted using three different random seeds (42, 123 and 2026) to assess the consistency of model performance. Performance metrics were aggregated across the three runs, with results reported as mean ± standard deviation. Where standard deviations were zero, this indicated that the corresponding evaluation metric remained identical across all three runs. Hence, the standard deviation has not been included in the results.
+
 The final test results were:
 
 | Test metric | < 65 | >= 65 |
