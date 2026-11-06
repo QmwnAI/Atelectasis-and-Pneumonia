@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -140,6 +141,7 @@ def main():
         torch.backends.cudnn.deterministic=True; torch.backends.cudnn.benchmark=False
     args.output_dir.mkdir(parents=True,exist_ok=True)
     rows=[]
+    roc_runs = {"<65": [], ">=65": []}
     for age_group in ("<65",">=65"):
         train_loader,val_loader,test_loader=make_loaders(cohort,age_group)
         for seed in SEEDS:
@@ -147,6 +149,17 @@ def main():
             vy,vp=predict(model,val_loader,device)
             threshold=choose_threshold(vy,vp)
             result=evaluate(model,test_loader,threshold,device)
+
+            # Retain test-set ROC coordinates for visualisation.
+            # This reuses the trained model and does not retrain it.
+            y_test, p_test = predict(model, test_loader, device)
+            fpr, tpr, _ = roc_curve(y_test, p_test)
+            roc_runs[age_group].append({
+                "fpr": fpr,
+                "tpr": tpr,
+                "auc": result["ROC-AUC"]
+            })
+
             result.update({"Age Group":age_group,"Seed":seed,"Threshold":threshold})
             rows.append(result)
             age_name="under65" if age_group=="<65" else "over65"
@@ -163,6 +176,127 @@ def main():
         summary.append(row)
     summary=pd.DataFrame(summary)
     summary.to_csv(args.output_dir/"cnn_test_summary.csv",index=False)
+
+    # --------------------------------------------------------
+    # ROC CURVES BY AGE GROUP
+    # Mean ROC curve across the three seeds, with +/- 1 SD band.
+    # --------------------------------------------------------
+    fpr_grid = np.linspace(0.0, 1.0, 201)
+    roc_colors = {"<65": "#2878B5", ">=65": "#F28E2B"}
+
+    plt.figure(figsize=(9, 7))
+
+    for age_group in ("<65", ">=65"):
+        runs = roc_runs[age_group]
+        interpolated_tprs = []
+
+        for run in runs:
+            interp_tpr = np.interp(fpr_grid, run["fpr"], run["tpr"])
+            interp_tpr[0] = 0.0
+            interp_tpr[-1] = 1.0
+            interpolated_tprs.append(interp_tpr)
+
+        mean_tpr = np.mean(interpolated_tprs, axis=0)
+        sd_tpr = np.std(interpolated_tprs, axis=0, ddof=1)
+        auc_values = results.loc[
+            results["Age Group"] == age_group, "ROC-AUC"
+        ]
+
+        color = roc_colors[age_group]
+        plt.plot(
+            fpr_grid,
+            mean_tpr,
+            color=color,
+            linewidth=2.5,
+            label=(
+                f"{age_group} "
+                f"(AUC = {auc_values.mean():.3f} "
+                f"+/- {auc_values.std(ddof=1):.3f})"
+            )
+        )
+        plt.fill_between(
+            fpr_grid,
+            np.clip(mean_tpr - sd_tpr, 0, 1),
+            np.clip(mean_tpr + sd_tpr, 0, 1),
+            color=color,
+            alpha=0.15
+        )
+
+    plt.plot(
+        [0, 1], [0, 1],
+        linestyle="--",
+        color="green",
+        linewidth=1.5,
+        label="Random classifier (AUC = 0.50)"
+    )
+    plt.xlabel("False Positive Rate", fontsize=12)
+    plt.ylabel("True Positive Rate", fontsize=12)
+    plt.title("CNN ROC Curves by Age Group", fontsize=15, weight="bold")
+    plt.xlim(0, 1)
+    plt.ylim(0, 1.02)
+    plt.grid(alpha=0.25)
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.savefig(
+        args.output_dir / "cnn_roc_curves.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+    plt.show()
+    plt.close()
+
+    # --------------------------------------------------------
+    # ACCURACY BY AGE GROUP
+    # Mean +/- sample SD across the three seeds.
+    # --------------------------------------------------------
+    accuracy_means = [
+        summary.loc[summary["Age Group"] == group, "Accuracy Mean"].iloc[0] * 100
+        for group in ("<65", ">=65")
+    ]
+    accuracy_sds = [
+        summary.loc[summary["Age Group"] == group, "Accuracy SD"].iloc[0] * 100
+        for group in ("<65", ">=65")
+    ]
+
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(
+        ["<65", ">=65"],
+        accuracy_means,
+        yerr=accuracy_sds,
+        capsize=7,
+        color=[roc_colors["<65"], roc_colors[">=65"]],
+        width=0.55,
+        edgecolor="black",
+        linewidth=0.7
+    )
+
+    for bar, mean, sd in zip(bars, accuracy_means, accuracy_sds):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2,
+            mean + sd + 1,
+            f"{mean:.2f}% +/- {sd:.2f}%",
+            ha="center",
+            fontsize=10,
+            weight="bold"
+        )
+
+    plt.xlabel("Age Group", fontsize=12)
+    plt.ylabel("Accuracy (%)", fontsize=12)
+    plt.title("CNN Accuracy by Age Group", fontsize=15, weight="bold")
+    plt.ylim(0, 80)
+    plt.grid(axis="y", alpha=0.25)
+    plt.tight_layout()
+    plt.savefig(
+        args.output_dir / "cnn_accuracy_comparison.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+    plt.show()
+    plt.close()
+
+    print("Saved visualisations:")
+    print(args.output_dir / "cnn_roc_curves.png")
+    print(args.output_dir / "cnn_accuracy_comparison.png")
     print(summary.round(4).to_string(index=False))
 
 if __name__=="__main__":
