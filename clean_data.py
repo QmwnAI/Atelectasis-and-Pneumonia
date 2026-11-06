@@ -200,261 +200,11 @@ def organise_columns(cohort: pd.DataFrame) -> pd.DataFrame:
     return cohort[output_columns].reset_index(drop=True)
 
 
-def build_distribution_table(cohort: pd.DataFrame, mode: str) -> pd.DataFrame:
-    """Build a split/age/label summary with subtotals and grand totals.
-
-    For mode='images', totals are image counts.
-    For mode='patients', disease columns count unique patients per label,
-    while each Total is calculated directly from distinct Patient IDs.
-    """
-    if mode not in {"images", "patients"}:
-        raise ValueError("mode must be 'images' or 'patients'.")
-
-    def counts_for(subset: pd.DataFrame) -> dict[str, int]:
-        if mode == "images":
-            label_counts = subset["label"].value_counts()
-            total = len(subset)
-        else:
-            label_counts = (
-                subset.groupby("label")["Patient ID"].nunique()
-            )
-            # Do not add disease-specific patient counts: one patient may
-            # contribute images labelled with both target diseases.
-            total = subset["Patient ID"].nunique()
-
-        return {
-            TARGET_A: int(label_counts.get(TARGET_A, 0)),
-            TARGET_B: int(label_counts.get(TARGET_B, 0)),
-            "Total": int(total),
-        }
-
-    rows: list[dict[str, object]] = []
-
-    # Split-level rows and subtotals.
-    for split in ("train", "validation", "test"):
-        split_df = cohort[cohort["split"] == split]
-
-        for age_group in ("<65", ">=65"):
-            subset = split_df[split_df["age_group"] == age_group]
-            rows.append({
-                "Partition": split.title(),
-                "Age Group": age_group,
-                **counts_for(subset),
-            })
-
-        rows.append({
-            "Partition": f"{split.title()} subtotal",
-            "Age Group": "All ages",
-            **counts_for(split_df),
-        })
-
-    # Age-group totals across all partitions.
-    for age_group in ("<65", ">=65"):
-        subset = cohort[cohort["age_group"] == age_group]
-        rows.append({
-            "Partition": "Age group total",
-            "Age Group": age_group,
-            **counts_for(subset),
-        })
-
-    # Grand totals are calculated directly from the full cohort.
-    rows.append({
-        "Partition": "GRAND TOTAL",
-        "Age Group": "All ages",
-        **counts_for(cohort),
-    })
-
-    return pd.DataFrame(rows)
-
-
-def style_distribution_table(table: pd.DataFrame, title: str) -> pd.io.formats.style.Styler:
-    """Apply consistent styling to cohort distribution tables."""
-    def highlight_summary_rows(row: pd.Series) -> list[str]:
-        partition = str(row["Partition"])
-        if partition == "GRAND TOTAL":
-            style = "background-color: #172554; color: white; font-weight: bold;"
-        elif "subtotal" in partition:
-            style = "background-color: #DBEAFE; color: #1E3A8A; font-weight: bold;"
-        elif partition == "Age group total":
-            style = "background-color: #EDE9FE; color: #5B21B6; font-weight: bold;"
-        else:
-            style = ""
-        return [style] * len(row)
-
-    return (
-        table.style
-        .format({
-            TARGET_A: "{:,.0f}",
-            TARGET_B: "{:,.0f}",
-            "Total": "{:,.0f}",
-        })
-        .background_gradient(cmap="Blues", subset=[TARGET_A])
-        .background_gradient(cmap="Oranges", subset=[TARGET_B])
-        .apply(highlight_summary_rows, axis=1)
-        .set_caption(title)
-        .set_properties(**{
-            "text-align": "center",
-            "padding": "10px",
-            "font-size": "13px",
-            "border": "1px solid #E2E8F0",
-        })
-        .set_table_styles([
-            {
-                "selector": "caption",
-                "props": [
-                    ("font-size", "18px"),
-                    ("font-weight", "bold"),
-                    ("color", "#1E3A8A"),
-                    ("padding", "14px"),
-                    ("text-align", "left"),
-                ],
-            },
-            {
-                "selector": "th",
-                "props": [
-                    ("background-color", "#172554"),
-                    ("color", "white"),
-                    ("text-align", "center"),
-                    ("padding", "11px"),
-                    ("border", "1px solid #CBD5E1"),
-                ],
-            },
-            {
-                "selector": "table",
-                "props": [
-                    ("border-collapse", "collapse"),
-                    ("width", "100%"),
-                    ("font-family", "Arial, sans-serif"),
-                ],
-            },
-        ])
-        .hide(axis="index")
-    )
-
-
-def export_summary_html(
-    cohort: pd.DataFrame,
-    output_path: Path,
-    cross_age_patients: set[int],
-) -> None:
-    """Export both styled distribution tables as a standalone HTML report."""
-    image_table = build_distribution_table(cohort, mode="images")
-    patient_table = build_distribution_table(cohort, mode="patients")
-
-    image_html = style_distribution_table(
-        image_table,
-        "X-ray Distribution by Partition, Age Group and Diagnosis",
-    ).to_html()
-
-    patient_html = style_distribution_table(
-        patient_table,
-        "Unique Patient Distribution by Partition, Age Group and Diagnosis",
-    ).to_html()
-
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NIH ChestX-ray14 Cohort Summary</title>
-<style>
-    body {{
-        margin: 0;
-        padding: 32px;
-        background: #F8FAFC;
-        color: #0F172A;
-        font-family: Arial, sans-serif;
-    }}
-    main {{
-        max-width: 1100px;
-        margin: 0 auto;
-    }}
-    h1 {{ color: #172554; margin-bottom: 6px; }}
-    .subtitle {{ color: #64748B; margin-bottom: 24px; }}
-    .cards {{
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
-        margin: 22px 0 30px;
-    }}
-    .card {{
-        background: white;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 18px;
-    }}
-    .card .value {{
-        display: block;
-        color: #1D4ED8;
-        font-size: 28px;
-        font-weight: 700;
-    }}
-    .card .label {{ color: #64748B; font-size: 13px; }}
-    section {{
-        background: white;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 18px;
-        margin: 20px 0;
-        overflow-x: auto;
-    }}
-    .note {{
-        background: #EFF6FF;
-        border-left: 4px solid #2563EB;
-        padding: 14px 16px;
-        border-radius: 6px;
-        color: #1E3A8A;
-        line-height: 1.5;
-        font-size: 13px;
-    }}
-    @media (max-width: 700px) {{
-        body {{ padding: 14px; }}
-        .cards {{ grid-template-columns: 1fr; }}
-    }}
-</style>
-</head>
-<body>
-<main>
-    <h1>NIH ChestX-ray14 — Cohort Distribution</h1>
-    <div class="subtitle">Frozen Atelectasis-versus-Pneumonia cohort summary</div>
-    <div class="cards">
-        <div class="card">
-            <span class="value">{len(cohort):,}</span>
-            <span class="label">Total X-ray images</span>
-        </div>
-        <div class="card">
-            <span class="value">{cohort["Patient ID"].nunique():,}</span>
-            <span class="label">Unique patients</span>
-        </div>
-        <div class="card">
-            <span class="value">{len(cross_age_patients):,}</span>
-            <span class="label">Cross-age patients assigned to training</span>
-        </div>
-    </div>
-    <section>{image_html}</section>
-    <section>{patient_html}</section>
-    <div class="note">
-        <strong>Counting note:</strong> X-ray totals are additive. In the unique-patient
-        table, disease-specific counts may overlap because one patient can have
-        images labelled with both findings. Each row total and the grand total
-        therefore count distinct Patient IDs directly rather than summing the
-        disease-specific columns. Cross-age patients may appear in both age-group
-        totals but are assigned exclusively to the training partition.
-    </div>
-</main>
-</body>
-</html>
-"""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(html, encoding="utf-8")
-
-
 def print_summary(
     original: pd.DataFrame,
     cohort: pd.DataFrame,
     cross_age_patients: set[int],
     invalid_age_count: int,
-    summary_html_path: Path,
 ) -> None:
     print("\n=== NIH ChestX-ray14 study cohort ===")
     print(f"Original metadata rows: {len(original):,}")
@@ -463,14 +213,21 @@ def print_summary(
     print(f"Invalid ages removed:    {invalid_age_count:,}")
     print(f"Cross-age patients forced into training: {len(cross_age_patients):,}")
 
-    image_summary = build_distribution_table(cohort, mode="images")
-    patient_summary = build_distribution_table(cohort, mode="patients")
+    print("\nX-rays by split, age group and label:")
+    image_summary = (
+        cohort.groupby(["split", "age_group", "label"])
+        .size()
+        .unstack(fill_value=0)
+    )
+    print(image_summary.to_string())
 
-    print("\nX-ray distribution (including subtotals and grand total):")
-    print(image_summary.to_string(index=False))
-
-    print("\nUnique patient distribution (including subtotals and grand total):")
-    print(patient_summary.to_string(index=False))
+    print("\nUnique patients by split, age group and label:")
+    patient_summary = (
+        cohort.groupby(["split", "age_group", "label"])["Patient ID"]
+        .nunique()
+        .unstack(fill_value=0)
+    )
+    print(patient_summary.to_string())
 
     older_pneumonia = cohort[
         (cohort["age_group"] == ">=65") & (cohort["label"] == TARGET_B)
@@ -481,12 +238,7 @@ def print_summary(
     print("\n>=65 Pneumonia unique patients by split:")
     print(older_pneumonia.groupby("split")["Patient ID"].nunique().to_string())
 
-    # Verify image totals and unique-patient totals independently.
-    assert image_summary.iloc[-1]["Total"] == len(cohort)
-    assert patient_summary.iloc[-1]["Total"] == cohort["Patient ID"].nunique()
-
     print("\nLeakage check: PASSED - every patient belongs to exactly one split.")
-    print(f"Styled cohort summary saved to: {summary_html_path}")
 
 def main() -> None:
     args = parse_args()
@@ -504,21 +256,11 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     cohort.to_csv(args.output, index=False)
 
-    summary_html_path = args.output.with_name(
-        f"{args.output.stem}_summary.html"
-    )
-
     print_summary(
         original,
         cohort,
         cross_age_patients,
         invalid_age_count,
-        summary_html_path,
-    )
-    export_summary_html(
-        cohort,
-        summary_html_path,
-        cross_age_patients,
     )
     print(f"\nSaved cleaned and split cohort to: {args.output}")
     print("\nThis CSV is the frozen cohort definition. CNN, ViT and SVM experiments should")
