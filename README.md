@@ -332,7 +332,7 @@ Differences in model performance across age groups do not by themselves establis
 
 ## Project Status
 
-**Work in progress**
+**Completed**
 
 - Data cleaning and cohort selection: **Completed**
 - Frozen `cleaned_cohort.csv` and fixed model splits: **Completed**
@@ -342,7 +342,7 @@ Differences in model performance across age groups do not by themselves establis
 - CNN three-seed validation and final test evaluation: **Completed**
 - ViT development: **Completed**
 - SVM development and test evaluation: **Completed**
-- Cross-model evaluation and comparison: **In progress**
+- Cross-model evaluation and comparison: **Completed**
 
 ## Disclaimer
 
